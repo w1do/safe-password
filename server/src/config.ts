@@ -37,7 +37,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const dataDir = env.VAULT_DATA_DIR ?? '/data';
   const webDir = env.VAULT_WEB_DIR ?? path.resolve(process.cwd(), 'public');
   return {
-    port: Number(env.PORT ?? 8080),
+    port: Number(env.PORT ?? 8089),
     host: env.HOST ?? '0.0.0.0',
     dbPath: env.VAULT_DB_PATH ?? path.join(dataDir, 'db', 'vault.sqlite'),
     configDir: env.VAULT_CONFIG_DIR ?? path.join(dataDir, 'config'),

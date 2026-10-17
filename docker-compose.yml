@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     # Published on loopback only. Expose to the network via an HTTPS reverse proxy (see README).
     ports:
-      - "${VAULT_BIND:-127.0.0.1}:${VAULT_PORT:-8080}:8080"
+      - "${VAULT_BIND:-127.0.0.1}:${VAULT_PORT:-8089}:8089"
     environment:
       # Used on the FIRST start only; ignored once the admin exists.
       VAULT_ADMIN_EMAIL: ${VAULT_ADMIN_EMAIL:-}

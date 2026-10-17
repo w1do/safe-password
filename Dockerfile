@@ -21,7 +21,7 @@ RUN rm -rf node_modules server/node_modules web/node_modules \
 # ---------- runtime ----------
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production \
-    PORT=8080 \
+    PORT=8089 \
     HOST=0.0.0.0 \
     VAULT_DATA_DIR=/data \
     VAULT_WEB_DIR=/app/public
@@ -33,8 +33,8 @@ COPY --from=build /app/web/dist ./public
 # Named volumes inherit this ownership and mode on first creation.
 RUN mkdir -p /data/db /data/config && chown -R node:node /data && chmod 700 /data/db /data/config
 USER node
-EXPOSE 8080
+EXPOSE 8089
 VOLUME ["/data/db", "/data/config"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8089/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["node", "server/dist/index.js"]

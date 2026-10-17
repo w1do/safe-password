@@ -24,7 +24,7 @@ cp .env.example .env        # необязательно: все значени�
 docker compose up -d --build
 ```
 
-Панель: <http://127.0.0.1:8080>. Сервис публикуется **только на 127.0.0.1**.
+Панель: <http://127.0.0.1:8089>. Сервис публикуется **только на 127.0.0.1**.
 
 При первом запуске сервис сам создаёт базу, ключ шифрования и учётные данные администратора.
 Если `VAULT_ADMIN_EMAIL`, `VAULT_ADMIN_PASSWORD`, `VAULT_ACCESS_TOKEN` не заданы, сгенерированные значения
@@ -55,7 +55,7 @@ docker compose exec vault rm /data/config/initial-credentials.txt
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `VAULT_BIND` | `127.0.0.1` | Интерфейс хоста, на котором публикуется порт |
-| `VAULT_PORT` | `8080` | Порт на хосте |
+| `VAULT_PORT` | `8089` | Порт на хосте |
 | `VAULT_ADMIN_EMAIL` | `admin@vault.local` | Email администратора (только первый запуск) |
 | `VAULT_ADMIN_PASSWORD` | генерируется | Пароль, минимум 12 символов (только первый запуск) |
 | `VAULT_ACCESS_TOKEN` | генерируется (`vlt_…`) | Токен доступа, минимум 32 символа (только первый запуск) |
@@ -80,7 +80,7 @@ docker compose exec vault rm /data/config/initial-credentials.txt
 
 ## MCP для агентов
 
-Endpoint: `POST http://127.0.0.1:8080/mcp` (Streamable HTTP, stateless, JSON-ответы).
+Endpoint: `POST http://127.0.0.1:8089/mcp` (Streamable HTTP, stateless, JSON-ответы).
 Каждый запрос должен содержать заголовок:
 
 ```
@@ -135,7 +135,7 @@ Authorization: Bearer <token>
      "mcpServers": {
        "vault": {
          "type": "http",
-         "url": "http://127.0.0.1:8080/mcp",
+         "url": "http://127.0.0.1:8089/mcp",
          "headers": { "Authorization": "Bearer ${VAULT_TOKEN}" }
        }
      }
@@ -160,7 +160,7 @@ Authorization: Bearer <token>
 
    const client = new Client({ name: 'my-agent', version: '1.0.0' });
    await client.connect(
-     new StreamableHTTPClientTransport(new URL(process.env.VAULT_MCP_URL ?? 'http://127.0.0.1:8080/mcp'), {
+     new StreamableHTTPClientTransport(new URL(process.env.VAULT_MCP_URL ?? 'http://127.0.0.1:8089/mcp'), {
        requestInit: { headers: { Authorization: `Bearer ${token}` } },
      }),
    );
@@ -170,7 +170,7 @@ Authorization: Bearer <token>
 5. **Проверка через curl**:
 
    ```bash
-   curl -s http://127.0.0.1:8080/mcp \
+   curl -s http://127.0.0.1:8089/mcp \
      -H "Authorization: Bearer $VAULT_TOKEN" \
      -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
      -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_projects","arguments":{}}}'
@@ -204,7 +204,7 @@ Authorization: Bearer <token>
 
 ```caddyfile
 vault.example.com {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:8089
 }
 ```
 
@@ -216,7 +216,7 @@ COOKIE_SECURE=true
 ```
 
 Затем `docker compose up -d`. Агенты подключаются к `https://vault.example.com/mcp`.
-Не публикуйте порт 8080 наружу без HTTPS (`VAULT_BIND=0.0.0.0` без прокси передаёт токен в открытом виде).
+Не публикуйте порт 8089 наружу без HTTPS (`VAULT_BIND=0.0.0.0` без прокси передаёт токен в открытом виде).
 
 ## Резервное копирование
 
@@ -265,8 +265,8 @@ docker compose up -d
 npm install
 npm test             # тесты сервера (API, MCP, шифрование, хранение) и панели
 npm run typecheck
-npm run dev:server   # API + MCP на 127.0.0.1:8080; данные в ./.data
-npm run dev:web      # Vite на :5173, проксирует /api и /mcp на :8080
+npm run dev:server   # API + MCP на 127.0.0.1:8089; данные в ./.data
+npm run dev:web      # Vite на :5173, проксирует /api и /mcp на :8089
 ```
 
 Учётные данные для входа в dev-режиме — в `./.data/config/initial-credentials.txt`.

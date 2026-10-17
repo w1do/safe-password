@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { SecretCell } from '@/components/SecretCell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,10 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Credential, CredentialStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+
+/** dataTransfer type of a dragged credential row; the payload is the credential id. */
+export const CREDENTIAL_DRAG_TYPE = 'application/x-vault-credential';
 
 interface Props {
   credentials: Credential[];
@@ -14,9 +18,12 @@ interface Props {
   onDelete: (c: Credential) => void;
   onStatusChange: (c: Credential, status: CredentialStatus) => void;
   onOpenProject?: (projectId: string) => void;
+  /** Rows become draggable onto projects in the sidebar. */
+  onDragStart?: (c: Credential) => void;
+  onDragEnd?: () => void;
 }
 
-export function CredentialsTable({ credentials, showProject, onEdit, onDelete, onStatusChange, onOpenProject }: Props) {
+export function CredentialsTable({ credentials, showProject, onEdit, onDelete, onStatusChange, onOpenProject, onDragStart, onDragEnd }: Props) {
   return (
     <Table>
       <TableHeader>
@@ -33,7 +40,17 @@ export function CredentialsTable({ credentials, showProject, onEdit, onDelete, o
         {credentials.map((c) => {
           const active = c.status === 'active';
           return (
-            <TableRow key={c.id} className={active ? undefined : 'text-muted-foreground'}>
+            <TableRow
+              key={c.id}
+              className={cn(!active && 'text-muted-foreground', onDragStart && 'cursor-grab active:cursor-grabbing')}
+              draggable={!!onDragStart}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(CREDENTIAL_DRAG_TYPE, c.id);
+                e.dataTransfer.effectAllowed = 'move';
+                onDragStart?.(c);
+              }}
+              onDragEnd={() => onDragEnd?.()}
+            >
               {showProject && (
                 <TableCell>
                   <button className="font-medium underline-offset-4 hover:underline" onClick={() => onOpenProject?.(c.projectId)}>
@@ -41,7 +58,14 @@ export function CredentialsTable({ credentials, showProject, onEdit, onDelete, o
                   </button>
                 </TableCell>
               )}
-              <TableCell className="font-medium">{c.service}</TableCell>
+              <TableCell className="font-medium">
+                <div className="flex items-center gap-1.5">
+                  {onDragStart && (
+                    <GripVertical className="-ml-1 h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden />
+                  )}
+                  {c.service}
+                </div>
+              </TableCell>
               <TableCell>
                 <div>{c.name}</div>
                 <div className="text-xs text-muted-foreground" title={`Создан: ${formatDate(c.createdAt)}`}>

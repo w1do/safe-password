@@ -85,6 +85,7 @@ export const api = {
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
   createProject: (name: string) => request<{ project: Project }>('POST', '/api/projects', { name }).then((r) => r.project),
   renameProject: (id: string, name: string) => request<{ project: Project }>('PATCH', `/api/projects/${enc(id)}`, { name }).then((r) => r.project),
+  deleteProject: (id: string) => request<{ deleted: number }>('DELETE', `/api/projects/${enc(id)}`).then((r) => r.deleted),
 
   listCredentials: (projectId: string) =>
     request<{ credentials: Credential[] }>('GET', `/api/projects/${enc(projectId)}/credentials`).then((r) => r.credentials),
@@ -92,7 +93,7 @@ export const api = {
   revealSecret: (id: string) => request<{ secret: string }>('GET', `/api/credentials/${enc(id)}/secret`).then((r) => r.secret),
   createCredential: (projectId: string, input: { service: string; name: string; secret: string; status: CredentialStatus }) =>
     request<{ credential: Credential }>('POST', `/api/projects/${enc(projectId)}/credentials`, input).then((r) => r.credential),
-  updateCredential: (id: string, patch: { service?: string; name?: string; secret?: string; status?: CredentialStatus }) =>
+  updateCredential: (id: string, patch: { projectId?: string; service?: string; name?: string; secret?: string; status?: CredentialStatus }) =>
     request<{ credential: Credential }>('PATCH', `/api/credentials/${enc(id)}`, patch).then((r) => r.credential),
   deleteCredential: (id: string) => request<void>('DELETE', `/api/credentials/${enc(id)}`),
   deleteInactive: (projectId: string) =>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/App';
@@ -153,6 +153,62 @@ describe('dashboard', () => {
     await user.type(input, 'Магазин');
     await user.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(await screen.findByRole('heading', { name: 'Магазин' })).toBeInTheDocument();
+  });
+
+  it('deletes a project with its records after confirmation', async () => {
+    const { backend, user } = await renderSignedIn((b) => {
+      const old = b.seedProject('Old');
+      b.seedProject('Keep');
+      b.seedCredential(old, 'GitHub', 'a', 's1');
+      b.seedCredential(old, 'GitHub', 'b', 's2');
+    });
+    await user.click(await screen.findByRole('button', { name: 'Удалить проект Old' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('все его записи (2)');
+    expect(backend.requests.some((r) => r.method === 'DELETE')).toBe(false);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Удалить проект' }));
+    expect(await screen.findByRole('heading', { name: 'Keep' })).toBeInTheDocument();
+    expect(backend.projects.map((p) => p.name)).toEqual(['Keep']);
+    expect(backend.credentials).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Удалить проект Old' })).not.toBeInTheDocument();
+  });
+
+  it('moves a record to another project by dragging it onto the project', async () => {
+    let from = '';
+    let to = '';
+    const { backend } = await renderSignedIn((b) => {
+      from = b.seedProject('From');
+      to = b.seedProject('To');
+      b.seedCredential(from, 'GitHub', 'Prod', 's1');
+    });
+    const row = (await screen.findByRole('cell', { name: 'GitHub' })).closest('tr')!;
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      types: [] as string[],
+      setData: (type: string, value: string) => {
+        data.set(type, value);
+        dataTransfer.types.push(type);
+      },
+      getData: (type: string) => data.get(type) ?? '',
+      effectAllowed: 'all',
+      dropEffect: 'none',
+    };
+
+    fireEvent.dragStart(row, { dataTransfer });
+    // Dropping on the record's own project does nothing.
+    fireEvent.drop(screen.getByTestId(`project-${from}`), { dataTransfer });
+    expect(backend.requests.some((r) => r.method === 'PATCH')).toBe(false);
+
+    fireEvent.dragStart(row, { dataTransfer });
+    const target = screen.getByTestId(`project-${to}`);
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+
+    await waitFor(() => expect(backend.credentials[0].projectId).toBe(to));
+    expect(backend.requests.find((r) => r.method === 'PATCH')!.body).toEqual({ projectId: to });
+    await waitFor(() => expect(screen.queryByRole('cell', { name: 'GitHub' })).not.toBeInTheDocument());
+    expect(within(target).getByText('1')).toBeInTheDocument();
   });
 
   it('searches across projects by project, service and key name', async () => {

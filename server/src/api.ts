@@ -103,6 +103,11 @@ export function apiRouter(vault: Vault, config: AppConfig, log: Logger, loginLim
     res.json({ project: vault.renameProject(req.params.id, body(req).name) });
   });
 
+  /** Deletes the project with all its credentials. */
+  r.delete('/projects/:id', (req, res) => {
+    res.json({ deleted: vault.deleteProject(req.params.id) });
+  });
+
   r.get('/projects/:id/credentials', (req, res) => {
     const query = typeof req.query.q === 'string' ? req.query.q : undefined;
     res.json({ credentials: vault.listCredentials({ projectId: req.params.id, query }) });
@@ -144,6 +149,7 @@ export function apiRouter(vault: Vault, config: AppConfig, log: Logger, loginLim
   r.patch('/credentials/:id', (req, res) => {
     const b = body(req);
     const credential = vault.updateCredential(req.params.id, {
+      projectId: optionalString(b.projectId, 'projectId'),
       service: optionalString(b.service, 'service'),
       name: optionalString(b.name, 'name'),
       secret: optionalString(b.secret, 'secret'),

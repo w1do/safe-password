@@ -49,6 +49,8 @@ export interface CredentialInput {
 }
 
 export interface CredentialPatch {
+  /** Moves the credential to another project. */
+  projectId?: string;
   service?: string;
   name?: string;
   /** Empty string or undefined keeps the stored secret. */
@@ -301,6 +303,14 @@ export class Vault {
     return this.getProject(id);
   }
 
+  /** Deletes the project together with all its credentials and returns how many credentials were removed. */
+  deleteProject(id: string): number {
+    const project = this.getProject(id);
+    // credentials are removed by ON DELETE CASCADE
+    this.db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
+    return project.credentialCount;
+  }
+
   // ---------------------------------------------------------------- credentials
 
   /**
@@ -383,6 +393,7 @@ export class Vault {
 
   updateCredential(id: unknown, patch: CredentialPatch): Credential {
     const current = this.getCredential(id);
+    const projectId = patch.projectId === undefined ? current.projectId : this.getProject(requireText(patch.projectId, 'projectId', 100)).id;
     const service = patch.service === undefined ? current.service : requireText(patch.service, 'service', LIMITS.service);
     const name = patch.name === undefined ? current.name : requireText(patch.name, 'name', LIMITS.keyName);
     const status = patch.status === undefined ? current.status : requireStatus(patch.status);
@@ -391,20 +402,33 @@ export class Vault {
     try {
       if (newSecret === null) {
         this.db
-          .prepare('UPDATE credentials SET service = ?, service_norm = ?, name = ?, name_norm = ?, active = ?, updated_at = ? WHERE id = ?')
-          .run(service, normalize(service), name, normalize(name), status === 'active' ? 1 : 0, ts, current.id);
+          .prepare(
+            'UPDATE credentials SET project_id = ?, service = ?, service_norm = ?, name = ?, name_norm = ?, active = ?, updated_at = ? WHERE id = ?',
+          )
+          .run(projectId, service, normalize(service), name, normalize(name), status === 'active' ? 1 : 0, ts, current.id);
       } else {
         this.db
           .prepare(
-            'UPDATE credentials SET service = ?, service_norm = ?, name = ?, name_norm = ?, active = ?, secret = ?, updated_at = ? WHERE id = ?',
+            'UPDATE credentials SET project_id = ?, service = ?, service_norm = ?, name = ?, name_norm = ?, active = ?, secret = ?, updated_at = ? WHERE id = ?',
           )
-          .run(service, normalize(service), name, normalize(name), status === 'active' ? 1 : 0, encryptSecret(this.key, newSecret, current.id), ts, current.id);
+          .run(
+            projectId,
+            service,
+            normalize(service),
+            name,
+            normalize(name),
+            status === 'active' ? 1 : 0,
+            encryptSecret(this.key, newSecret, current.id),
+            ts,
+            current.id,
+          );
       }
     } catch (e) {
       if (isUniqueViolation(e)) throw duplicateCredential(service, name);
       throw e;
     }
     this.touchProject(current.projectId);
+    if (projectId !== current.projectId) this.touchProject(projectId);
     return this.getCredential(current.id);
   }
 

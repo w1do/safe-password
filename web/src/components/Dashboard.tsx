@@ -3,7 +3,7 @@ import { FolderClosed, FolderPlus, KeyRound, Loader2, LockKeyhole, LogOut, Penci
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CredentialDialog, type CredentialFormValues } from '@/components/CredentialDialog';
-import { CredentialsTable } from '@/components/CredentialsTable';
+import { CREDENTIAL_DRAG_TYPE, CredentialsTable } from '@/components/CredentialsTable';
 import { ProjectDialog } from '@/components/ProjectDialog';
 import { RotateTokenDialog } from '@/components/RotateTokenDialog';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,9 @@ export function Dashboard({ email, onSignedOut, onTokenRotated }: Props) {
   const [credentialDialog, setCredentialDialog] = useState<CredentialDialogState>({ open: false });
   const [toDelete, setToDelete] = useState<Credential | null>(null);
   const [confirmBulk, setConfirmBulk] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [dragged, setDragged] = useState<Credential | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [rotateOpen, setRotateOpen] = useState(false);
 
   const selected = useMemo(() => projects?.find((p) => p.id === selectedId) ?? null, [projects, selectedId]);
@@ -136,6 +139,37 @@ export function Dashboard({ email, onSignedOut, onTokenRotated }: Props) {
     await refresh();
   }
 
+  async function deleteProject() {
+    if (!projectToDelete) return;
+    const p = projectToDelete;
+    setProjectToDelete(null);
+    try {
+      const n = await api.deleteProject(p.id);
+      toast.success(n > 0 ? `Проект «${p.name}» удалён вместе с записями: ${n}` : `Проект «${p.name}» удалён`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+    await refresh();
+  }
+
+  async function moveCredential(c: Credential, target: Project) {
+    if (c.projectId === target.id) return;
+    // Outside search the moved record leaves the current list right away.
+    if (!searching) setCredentials((list) => list?.filter((x) => x.id !== c.id) ?? null);
+    try {
+      await api.updateCredential(c.id, { projectId: target.id });
+      toast.success(`«${c.service} · ${c.name}» перенесена в «${target.name}»`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+    await refresh();
+  }
+
+  function endDrag() {
+    setDragged(null);
+    setDropTargetId(null);
+  }
+
   const editingProjectName =
     credentialDialog.open && credentialDialog.credential ? credentialDialog.credential.projectName : (selected?.name ?? '');
 
@@ -179,12 +213,35 @@ export function Dashboard({ email, onSignedOut, onTokenRotated }: Props) {
           <nav aria-label="Проекты" className="grid gap-0.5">
             {projects === null && <Loader2 className="mx-auto my-4 h-5 w-5 animate-spin text-muted-foreground" />}
             {projects?.length === 0 && <p className="px-2 py-4 text-center text-sm text-muted-foreground">Проектов пока нет</p>}
+            {dragged && <p className="px-2 pb-1 text-xs text-muted-foreground">Перетащите запись на проект, чтобы перенести её</p>}
             {projects?.map((p) => {
               const isSelected = p.id === selectedId && !searching;
+              const canDrop = dragged !== null && dragged.projectId !== p.id;
               return (
                 <div
                   key={p.id}
-                  className={cn('group flex items-center rounded-md pr-1 text-sm transition-colors', isSelected ? 'bg-accent font-medium' : 'hover:bg-accent/60')}
+                  data-testid={`project-${p.id}`}
+                  className={cn(
+                    'group flex items-center rounded-md pr-1 text-sm transition-colors',
+                    isSelected ? 'bg-accent font-medium' : 'hover:bg-accent/60',
+                    canDrop && 'outline-dashed outline-1 -outline-offset-1 outline-muted-foreground/40',
+                    canDrop && dropTargetId === p.id && 'bg-primary/10 outline outline-2 outline-primary',
+                  )}
+                  onDragOver={(e) => {
+                    if (!canDrop || !e.dataTransfer.types.includes(CREDENTIAL_DRAG_TYPE)) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDropTargetId(p.id);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTargetId((cur) => (cur === p.id ? null : cur));
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const c = dragged;
+                    endDrag();
+                    if (c && c.id === e.dataTransfer.getData(CREDENTIAL_DRAG_TYPE)) void moveCredential(c, p);
+                  }}
                 >
                   <button
                     className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left"
@@ -206,6 +263,15 @@ export function Dashboard({ email, onSignedOut, onTokenRotated }: Props) {
                     onClick={() => setProjectDialog({ open: true, project: p })}
                   >
                     <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-7 w-7 text-destructive opacity-0 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                    aria-label={`Удалить проект ${p.name}`}
+                    onClick={() => setProjectToDelete(p)}
+                  >
+                    <Trash2 />
                   </Button>
                 </div>
               );
@@ -264,6 +330,8 @@ export function Dashboard({ email, onSignedOut, onTokenRotated }: Props) {
                   setSelectedId(id);
                   setQuery('');
                 }}
+                onDragStart={setDragged}
+                onDragEnd={endDrag}
               />
             )}
           </div>
@@ -298,6 +366,20 @@ export function Dashboard({ email, onSignedOut, onTokenRotated }: Props) {
         confirmLabel="Удалить неактивные"
         onOpenChange={setConfirmBulk}
         onConfirm={deleteInactive}
+      />
+      <ConfirmDialog
+        open={projectToDelete !== null}
+        title="Удалить проект?"
+        description={
+          projectToDelete
+            ? projectToDelete.credentialCount > 0
+              ? `Проект «${projectToDelete.name}» и все его записи (${projectToDelete.credentialCount}) будут удалены без возможности восстановления. Чтобы сохранить нужные записи, сначала перетащите их в другой проект.`
+              : `Пустой проект «${projectToDelete.name}» будет удалён.`
+            : ''
+        }
+        confirmLabel="Удалить проект"
+        onOpenChange={(open) => !open && setProjectToDelete(null)}
+        onConfirm={deleteProject}
       />
       <RotateTokenDialog open={rotateOpen} onOpenChange={setRotateOpen} onRotated={onTokenRotated} />
     </div>

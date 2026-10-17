@@ -78,6 +78,14 @@ export function installFakeBackend(opts: { signedIn?: boolean } = {}) {
       p.name = String(body?.name);
       return json(200, { project: projectDto(p) });
     }
+    if (m && method === 'DELETE') {
+      const i = projects.findIndex((x) => x.id === m![1]);
+      if (i < 0) return err(404, 'PROJECT_NOT_FOUND');
+      projects.splice(i, 1);
+      const before = credentials.length;
+      for (let j = credentials.length - 1; j >= 0; j--) if (credentials[j].projectId === m[1]) credentials.splice(j, 1);
+      return json(200, { deleted: before - credentials.length });
+    }
     m = /^\/api\/projects\/([^/]+)\/credentials$/.exec(path);
     if (m && method === 'GET') return json(200, { credentials: credentials.filter((c) => c.projectId === m![1]).map(meta) });
     if (m && method === 'POST') {
@@ -115,6 +123,7 @@ export function installFakeBackend(opts: { signedIn?: boolean } = {}) {
     m = /^\/api\/credentials\/([^/]+)$/.exec(path);
     if (m && method === 'PATCH') {
       const c = credentials.find((x) => x.id === m![1])!;
+      if (body?.projectId !== undefined) c.projectId = String(body.projectId);
       if (body?.service !== undefined) c.service = String(body.service);
       if (body?.name !== undefined) c.name = String(body.name);
       if (body?.status !== undefined) c.status = body.status as 'active';
@@ -144,6 +153,7 @@ export function installFakeBackend(opts: { signedIn?: boolean } = {}) {
 
   return {
     creds,
+    projects,
     requests,
     responses,
     credentials,

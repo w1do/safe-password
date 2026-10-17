@@ -1,0 +1,30 @@
+{
+  "name": "@vault/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "VAULT_DATA_DIR=${VAULT_DATA_DIR:-../.data} VAULT_WEB_DIR= HOST=127.0.0.1 tsx watch src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "better-sqlite3": "13.0.3",
+    "express": "5.1.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/express": "5.0.3",
+    "@types/node": "22.15.30",
+    "@types/supertest": "6.0.3",
+    "supertest": "7.1.1",
+    "tsx": "4.20.3",
+    "typescript": "5.8.3",
+    "vitest": "4.1.11"
+  }
+}

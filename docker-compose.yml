@@ -1,0 +1,31 @@
+services:
+  vault:
+    build: .
+    image: project-vault:latest
+    restart: unless-stopped
+    # Published on loopback only. Expose to the network via an HTTPS reverse proxy (see README).
+    ports:
+      - "${VAULT_BIND:-127.0.0.1}:${VAULT_PORT:-8080}:8080"
+    environment:
+      # Used on the FIRST start only; ignored once the admin exists.
+      VAULT_ADMIN_EMAIL: ${VAULT_ADMIN_EMAIL:-}
+      VAULT_ADMIN_PASSWORD: ${VAULT_ADMIN_PASSWORD:-}
+      VAULT_ACCESS_TOKEN: ${VAULT_ACCESS_TOKEN:-}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - vault-db:/data/db          # SQLite database
+      - vault-config:/data/config  # master.key + initial-credentials.txt (kept apart from the DB)
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  vault-db:
+  vault-config:

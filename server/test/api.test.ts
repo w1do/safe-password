@@ -130,6 +130,42 @@ describe('projects and credentials', () => {
     expect(left[0].status).toBe('active');
   });
 
+  it('deletes a project with all its credentials', async () => {
+    const s = await login(ctx);
+    const p = (await s.post('/api/projects', { name: 'Old' })).body.project;
+    const keep = (await s.post('/api/projects', { name: 'Keep' })).body.project;
+    const c = (await s.post(`/api/projects/${p.id}/credentials`, { service: 'DB', name: 'a', secret: 's1' })).body.credential;
+    await s.post(`/api/projects/${p.id}/credentials`, { service: 'DB', name: 'b', secret: 's2' });
+    await s.post(`/api/projects/${keep.id}/credentials`, { service: 'DB', name: 'a', secret: 's3' });
+
+    const res = await s.del(`/api/projects/${p.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ deleted: 2 });
+    expect((await s.get('/api/projects')).body.projects.map((x: { name: string }) => x.name)).toEqual(['Keep']);
+    expect((await s.get(`/api/credentials/${c.id}`)).status).toBe(404);
+    expect((await s.get(`/api/projects/${keep.id}/credentials`)).body.credentials).toHaveLength(1);
+    expect((await s.del(`/api/projects/${p.id}`)).body.error.code).toBe('PROJECT_NOT_FOUND');
+  });
+
+  it('moves a credential to another project and keeps its secret', async () => {
+    const s = await login(ctx);
+    const from = (await s.post('/api/projects', { name: 'From' })).body.project;
+    const to = (await s.post('/api/projects', { name: 'To' })).body.project;
+    const c = (await s.post(`/api/projects/${from.id}/credentials`, { service: 'GitHub', name: 'Prod', secret: 'moved-secret' })).body.credential;
+
+    const res = await s.patch(`/api/credentials/${c.id}`, { projectId: to.id });
+    expect(res.status).toBe(200);
+    expect(res.body.credential).toMatchObject({ projectId: to.id, projectName: 'To', service: 'GitHub', name: 'Prod' });
+    expect((await s.get(`/api/credentials/${c.id}/secret`)).body.secret).toBe('moved-secret');
+    expect((await s.get(`/api/projects/${from.id}/credentials`)).body.credentials).toHaveLength(0);
+
+    // A record with the same service and name in the target project blocks the move.
+    const dup = (await s.post(`/api/projects/${from.id}/credentials`, { service: 'github', name: 'prod', secret: 'x' })).body.credential;
+    expect((await s.patch(`/api/credentials/${dup.id}`, { projectId: to.id })).body.error.code).toBe('CREDENTIAL_EXISTS');
+    expect((await s.patch(`/api/credentials/${dup.id}`, { projectId: 'nope' })).body.error.code).toBe('PROJECT_NOT_FOUND');
+    expect((await s.get(`/api/credentials/${dup.id}`)).body.credential.projectId).toBe(from.id);
+  });
+
   it('searches by project, service and key name', async () => {
     const s = await login(ctx);
     const crm = (await s.post('/api/projects', { name: 'CRM' })).body.project;
